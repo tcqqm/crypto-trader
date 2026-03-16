@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  freqtrade:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto-trader
+    restart: unless-stopped
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./freqtrade/config.json:/freqtrade/config.json
+    ports:
+      - "8080:8080"
+    command: >
+      trade
+      --config /freqtrade/config.json
+      --strategy AdaptiveStrategy
