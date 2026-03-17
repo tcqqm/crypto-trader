@@ -30,10 +30,10 @@ class AdaptiveStrategy(IStrategy):
     can_short = False
     stoploss = -0.02  # 硬编码止损 -2%
 
-    # 移动止盈
+    # 移动止盈（降低触发门槛，让更多交易享受 trailing stop）
     trailing_stop = True
-    trailing_stop_positive = 0.01
-    trailing_stop_positive_offset = 0.02
+    trailing_stop_positive = 0.005   # 盈利回撤 0.5% 触发止盈
+    trailing_stop_positive_offset = 0.01  # 盈利 1% 后开始 trailing
     trailing_only_offset_is_reached = True
 
     # 策略参数
