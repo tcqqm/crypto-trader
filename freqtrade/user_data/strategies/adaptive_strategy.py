@@ -151,35 +151,49 @@ class AdaptiveStrategy(IStrategy):
         # 多空净得分
         dataframe["signal_strength"] = dataframe["bull_score"] - dataframe["bear_score"]
 
-        # === 趋势跟踪入场（ADX > 25 + 多空净得分 > 0.3） ===
+        # === 趋势跟踪入场（ADX > 25 + 多空净得分 > 0.15） ===
         trend_conditions = (
             (dataframe["is_trending"])
             & ~(dataframe["is_low_vol"])
-            # EMA 金叉
+            # EMA 金叉状态
             & (dataframe["ema_fast"] > dataframe["ema_slow"])
-            & (dataframe["ema_fast"].shift(1) <= dataframe["ema_slow"].shift(1))
-            # RSI 不超买
-            & (dataframe["rsi"] < self.rsi_overbought)
+            # RSI 在合理区间
+            & (dataframe["rsi"] > 45)
+            & (dataframe["rsi"] < 65)
             # 成交量确认
-            & (dataframe["volume"] > dataframe["volume_ma"])
+            & (dataframe["volume"] > dataframe["volume_ma"] * 0.8)
             & (dataframe["volume"] > 0)
-            # 多空对抗过滤：净得分必须 > 阈值
-            & (dataframe["signal_strength"] > 0.3)
+            # 多空对抗过滤
+            & (dataframe["signal_strength"] > 0.2)
+            # 价格在 BB 中轨以上
+            & (dataframe["close"] > dataframe["bb_middle"])
+            # 避免连续入场：前 12 根 K 线没有金叉状态
+            & (dataframe["ema_fast"].shift(12) <= dataframe["ema_slow"].shift(12))
         )
 
-        # === 均值回归入场（ADX < 20 + 多空净得分 > 0.1） ===
+        # === 均值回归入场（ADX < 20 + 1h 趋势不是下跌 + 更严格条件） ===
         revert_conditions = (
             (dataframe["is_ranging"])
-            & ~(dataframe["is_low_vol"])
-            # RSI 超卖
-            & (dataframe["rsi"] < self.rsi_oversold)
+            # RSI 深度超卖
+            & (dataframe["rsi"] < 28)
             # 价格触及布林带下轨
             & (dataframe["close"] <= dataframe["bb_lower"])
-            # 成交量确认
+            # 成交量确认（放量才抄底）
+            & (dataframe["volume"] > dataframe["volume_ma"] * 0.5)
             & (dataframe["volume"] > 0)
-            # 多空对抗过滤：均值回归阈值更低
-            & (dataframe["signal_strength"] > 0.1)
+            # RSI 开始回升（底部反转信号）
+            & (dataframe["rsi"] > dataframe["rsi"].shift(1))
+            # BB 宽度不能太大（避免在暴跌中抄底）
+            & (dataframe["bb_width_percentile"] < 0.60)
+            # 多空对抗：不能太偏空
+            & (dataframe["signal_strength"] > -0.1)
         )
+
+        # 1h 趋势过滤：均值回归不在 1h 下跌趋势中入场
+        if "ema_fast_1h_1h" in dataframe.columns:
+            revert_conditions = revert_conditions & (
+                dataframe["ema_fast_1h_1h"] >= dataframe["ema_slow_1h_1h"]
+            )
 
         # 合并信号
         dataframe.loc[trend_conditions, ["enter_long", "enter_tag"]] = (1, "trend_ema_cross")
@@ -190,17 +204,18 @@ class AdaptiveStrategy(IStrategy):
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """生成出场信号"""
 
-        # === 趋势跟踪出场：EMA 死叉 ===
+        # === 趋势出场：RSI 过热 + 动量衰减 ===
         dataframe.loc[
-            (dataframe["ema_fast"] < dataframe["ema_slow"])
-            & (dataframe["ema_fast"].shift(1) >= dataframe["ema_slow"].shift(1)),
+            (dataframe["rsi"] > 68)
+            & (dataframe["rsi"] < dataframe["rsi"].shift(1))
+            & (dataframe["close"] > dataframe["bb_middle"]),
             ["exit_long", "exit_tag"],
-        ] = (1, "trend_ema_death_cross")
+        ] = (1, "trend_rsi_exhaustion")
 
-        # === 均值回归出场：RSI 超买或触及 BB 上轨 ===
+        # === 均值回归出场：RSI 回归中性或接近 BB 上轨 ===
         dataframe.loc[
-            (dataframe["rsi"] > self.rsi_overbought)
-            | (dataframe["close"] >= dataframe["bb_upper"]),
+            (dataframe["rsi"] > 58)
+            | (dataframe["close"] >= dataframe["bb_upper"] * 0.99),
             ["exit_long", "exit_tag"],
         ] = (1, "revert_rsi_bb_exit")
 
