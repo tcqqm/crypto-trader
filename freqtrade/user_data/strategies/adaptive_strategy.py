@@ -11,7 +11,7 @@ import time
 import numpy as np
 import requests
 import talib.abstract as ta
-from freqtrade.strategy import IStrategy, merge_informative_pair
+from freqtrade.strategy import IStrategy, merge_informative_pair, IntParameter, DecimalParameter
 from pandas import DataFrame
 
 logger = logging.getLogger(__name__)
@@ -41,17 +41,29 @@ class AdaptiveStrategy(IStrategy):
     trailing_stop_positive_offset = 0.01  # 盈利 1% 后开始 trailing
     trailing_only_offset_is_reached = True
 
-    # 策略参数
+    # 策略参数（hyperopt 可优化）
     ema_fast = 9
     ema_slow = 21
     rsi_period = 14
     rsi_oversold = 30
     rsi_overbought = 70
     adx_period = 14
-    adx_trend_threshold = 25
-    adx_range_threshold = 20
     bb_period = 20
     bb_std = 2.0
+
+    # hyperopt 入场参数
+    adx_trend_threshold = IntParameter(20, 30, default=25, space="buy")
+    adx_range_threshold = IntParameter(15, 25, default=20, space="buy")
+    rsi_entry_low = IntParameter(35, 50, default=45, space="buy")
+    rsi_entry_high = IntParameter(60, 70, default=65, space="buy")
+    signal_strength_min = DecimalParameter(0.10, 0.30, default=0.20, decimals=2, space="buy")
+    atr_max_percentile = DecimalParameter(0.70, 0.90, default=0.78, decimals=2, space="buy")
+    ema_cooldown = IntParameter(6, 16, default=12, space="buy")
+    rsi_oversold_entry = IntParameter(22, 35, default=28, space="buy")
+
+    # hyperopt 出场参数
+    rsi_exit_trend = IntParameter(62, 75, default=68, space="sell")
+    rsi_exit_revert = IntParameter(50, 65, default=58, space="sell")
 
     # 仓位管理
     position_adjustment_enable = False
@@ -65,7 +77,10 @@ class AdaptiveStrategy(IStrategy):
         return [(pair, self.informative_timeframe) for pair in pairs]
 
     def bot_loop_start(self, current_time=None, **kwargs):
-        """每轮循环获取 Fear & Greed Index（每 4 小时刷新）"""
+        """每轮循环获取 Fear & Greed Index（每 4 小时刷新，仅 live/dry-run）"""
+        # hyperopt/backtesting 模式下跳过
+        if not self.dp or not self.dp.runmode.value in ("live", "dry_run"):
+            return
         now = time.time()
         if now - self.fng_last_fetch < 14400:
             return
@@ -112,8 +127,6 @@ class AdaptiveStrategy(IStrategy):
         )
 
         # === 市场状态标记 ===
-        dataframe["is_trending"] = dataframe["adx"] > self.adx_trend_threshold
-        dataframe["is_ranging"] = dataframe["adx"] < self.adx_range_threshold
         dataframe["is_high_vol"] = dataframe["atr_percentile"] > 0.80
         dataframe["is_low_vol"] = dataframe["bb_width_percentile"] < 0.20
 
@@ -164,24 +177,24 @@ class AdaptiveStrategy(IStrategy):
 
         # === 趋势跟踪入场 ===
         trend_conditions = (
-            (dataframe["is_trending"])
+            (dataframe["adx"] > self.adx_trend_threshold.value)
             & ~(dataframe["is_low_vol"])
             & ~(dataframe["is_high_vol"])
             & (dataframe["ema_fast"] > dataframe["ema_slow"])
-            & (dataframe["rsi"] > 45)
-            & (dataframe["rsi"] < 65)
+            & (dataframe["rsi"] > self.rsi_entry_low.value)
+            & (dataframe["rsi"] < self.rsi_entry_high.value)
             & (dataframe["volume"] > dataframe["volume_ma"] * 0.8)
             & (dataframe["volume"] > 0)
-            & (dataframe["signal_strength"] > 0.2)
+            & (dataframe["signal_strength"] > self.signal_strength_min.value)
             & (dataframe["close"] > dataframe["bb_middle"])
-            & (dataframe["atr_percentile"] < 0.78)
-            & (dataframe["ema_fast"].shift(12) <= dataframe["ema_slow"].shift(12))
+            & (dataframe["atr_percentile"] < self.atr_max_percentile.value)
+            & (dataframe["ema_fast"].shift(self.ema_cooldown.value) <= dataframe["ema_slow"].shift(self.ema_cooldown.value))
         )
 
         # === 均值回归入场 ===
         revert_conditions = (
-            (dataframe["is_ranging"])
-            & (dataframe["rsi"] < 28)
+            (dataframe["adx"] < self.adx_range_threshold.value)
+            & (dataframe["rsi"] < self.rsi_oversold_entry.value)
             & (dataframe["close"] <= dataframe["bb_lower"])
             & (dataframe["volume"] > dataframe["volume_ma"] * 0.5)
             & (dataframe["volume"] > 0)
@@ -207,7 +220,7 @@ class AdaptiveStrategy(IStrategy):
 
         # === 趋势出场：RSI 过热 + 动量衰减 ===
         dataframe.loc[
-            (dataframe["rsi"] > 68)
+            (dataframe["rsi"] > self.rsi_exit_trend.value)
             & (dataframe["rsi"] < dataframe["rsi"].shift(1))
             & (dataframe["close"] > dataframe["bb_middle"]),
             ["exit_long", "exit_tag"],
@@ -215,7 +228,7 @@ class AdaptiveStrategy(IStrategy):
 
         # === 均值回归出场：RSI 回归中性或接近 BB 上轨 ===
         dataframe.loc[
-            (dataframe["rsi"] > 58)
+            (dataframe["rsi"] > self.rsi_exit_revert.value)
             | (dataframe["close"] >= dataframe["bb_upper"] * 0.99),
             ["exit_long", "exit_tag"],
         ] = (1, "revert_rsi_bb_exit")
