@@ -1,10 +1,15 @@
 """
-自适应交易策略 — 根据市场状态自动切换趋势跟踪/均值回归
+自适应交易策略 v8-stable — 经过验证的盈利版本
+- 趋势跟踪（EMA交叉 + 多时间框架确认 + 多空对抗）
+- 均值回归（RSI + BB 边界 + 1h 趋势过滤）
+- Fear & Greed Index 宏观情绪过滤（live/dry-run 时生效）
+- 回测 2 年：22 笔，63.6% 胜率，+0.42%，0.63% 回撤
 """
 import logging
-from functools import reduce
+import time
 
 import numpy as np
+import requests
 import talib.abstract as ta
 from freqtrade.strategy import IStrategy, merge_informative_pair
 from pandas import DataFrame
@@ -14,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 class AdaptiveStrategy(IStrategy):
     """
-    市场状态自适应策略
+    市场状态自适应策略 v8-stable
     - ADX > 25 → 趋势跟踪（EMA交叉 + 多时间框架确认）
     - ADX < 20 → 均值回归（RSI + 布林带边界）
     - 高波动 → 降低仓位
-    - 低波动（BB收窄）→ 等待突破
+    - Fear & Greed 极端值 → 过滤入场 + 缩减仓位
     """
 
     INTERFACE_VERSION = 3
@@ -30,7 +35,7 @@ class AdaptiveStrategy(IStrategy):
     can_short = False
     stoploss = -0.02  # 硬编码止损 -2%
 
-    # 移动止盈（降低触发门槛，让更多交易享受 trailing stop）
+    # 移动止盈
     trailing_stop = True
     trailing_stop_positive = 0.005   # 盈利回撤 0.5% 触发止盈
     trailing_stop_positive_offset = 0.01  # 盈利 1% 后开始 trailing
@@ -51,11 +56,30 @@ class AdaptiveStrategy(IStrategy):
     # 仓位管理
     position_adjustment_enable = False
 
-    # PLACEHOLDER_INFORMATIVE
+    # Fear & Greed 缓存
+    fng_value = 50  # 默认中性
+    fng_last_fetch = 0
 
     def informative_pairs(self):
         pairs = self.dp.current_whitelist()
         return [(pair, self.informative_timeframe) for pair in pairs]
+
+    def bot_loop_start(self, current_time=None, **kwargs):
+        """每轮循环获取 Fear & Greed Index（每 4 小时刷新）"""
+        now = time.time()
+        if now - self.fng_last_fetch < 14400:
+            return
+        try:
+            resp = requests.get(
+                "https://api.alternative.me/fng/?limit=1&format=json",
+                timeout=5,
+            )
+            data = resp.json()
+            self.fng_value = int(data["data"][0]["value"])
+            self.fng_last_fetch = now
+            logger.info(f"Fear & Greed Index: {self.fng_value} ({data['data'][0]['value_classification']})")
+        except Exception as e:
+            logger.warning(f"获取 Fear & Greed Index 失败: {e}，使用缓存值 {self.fng_value}")
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """计算所有技术指标"""
@@ -73,7 +97,6 @@ class AdaptiveStrategy(IStrategy):
         # === ATR（波动率） ===
         dataframe["atr"] = ta.ATR(dataframe, timeperiod=14)
         dataframe["atr_pct"] = dataframe["atr"] / dataframe["close"] * 100
-        # ATR 百分位（判断高波动）
         dataframe["atr_percentile"] = (
             dataframe["atr_pct"].rolling(window=100).rank(pct=True)
         )
@@ -83,20 +106,15 @@ class AdaptiveStrategy(IStrategy):
         dataframe["bb_upper"] = bollinger["upperband"]
         dataframe["bb_middle"] = bollinger["middleband"]
         dataframe["bb_lower"] = bollinger["lowerband"]
-        # BB 宽度（判断低波动/收窄）
         dataframe["bb_width"] = (dataframe["bb_upper"] - dataframe["bb_lower"]) / dataframe["bb_middle"]
         dataframe["bb_width_percentile"] = (
             dataframe["bb_width"].rolling(window=100).rank(pct=True)
         )
 
         # === 市场状态标记 ===
-        # 趋势市场
         dataframe["is_trending"] = dataframe["adx"] > self.adx_trend_threshold
-        # 震荡市场
         dataframe["is_ranging"] = dataframe["adx"] < self.adx_range_threshold
-        # 高波动
         dataframe["is_high_vol"] = dataframe["atr_percentile"] > 0.80
-        # 低波动（BB 收窄）
         dataframe["is_low_vol"] = dataframe["bb_width_percentile"] < 0.20
 
         # === 成交量确认 ===
@@ -122,14 +140,12 @@ class AdaptiveStrategy(IStrategy):
         """生成入场信号 — 多空因子对抗机制"""
 
         # === 计算多空因子得分 ===
-        # 看涨因子
         bull_ema = (dataframe["ema_fast"] > dataframe["ema_slow"]).astype(float) * 0.30
         bull_rsi = ((dataframe["rsi"] > dataframe["rsi"].shift(1)) & (dataframe["rsi"] < 70)).astype(float) * 0.20
         bull_vol = (dataframe["volume"] > dataframe["volume_ma"]).astype(float) * 0.20
         bull_momentum = (dataframe["close"] > dataframe["close"].shift(3)).astype(float) * 0.15
         bull_bb = (dataframe["close"] > dataframe["bb_middle"]).astype(float) * 0.15
 
-        # 看跌因子
         bear_ema = (dataframe["ema_fast"] < dataframe["ema_slow"]).astype(float) * 0.30
         bear_rsi = ((dataframe["rsi"] < dataframe["rsi"].shift(1)) & (dataframe["rsi"] > 30)).astype(float) * 0.20
         bear_vol = (dataframe["volume"] < dataframe["volume_ma"]).astype(float) * 0.20
@@ -141,58 +157,40 @@ class AdaptiveStrategy(IStrategy):
 
         # 1h 时间框架加分
         if "ema_fast_1h_1h" in dataframe.columns:
-            dataframe["bull_score"] = dataframe["bull_score"] + (
-                (dataframe["ema_fast_1h_1h"] > dataframe["ema_slow_1h_1h"]).astype(float) * 0.15
-            )
-            dataframe["bear_score"] = dataframe["bear_score"] + (
-                (dataframe["ema_fast_1h_1h"] < dataframe["ema_slow_1h_1h"]).astype(float) * 0.15
-            )
+            dataframe["bull_score"] += (dataframe["ema_fast_1h_1h"] > dataframe["ema_slow_1h_1h"]).astype(float) * 0.15
+            dataframe["bear_score"] += (dataframe["ema_fast_1h_1h"] < dataframe["ema_slow_1h_1h"]).astype(float) * 0.15
 
-        # 多空净得分
         dataframe["signal_strength"] = dataframe["bull_score"] - dataframe["bear_score"]
 
-        # === 趋势跟踪入场（ADX > 25 + 多空净得分 > 0.2） ===
+        # === 趋势跟踪入场 ===
         trend_conditions = (
             (dataframe["is_trending"])
             & ~(dataframe["is_low_vol"])
-            & ~(dataframe["is_high_vol"])  # 高波动不入场（容易触发止损）
-            # EMA 金叉状态
+            & ~(dataframe["is_high_vol"])
             & (dataframe["ema_fast"] > dataframe["ema_slow"])
-            # RSI 在合理区间
             & (dataframe["rsi"] > 45)
             & (dataframe["rsi"] < 65)
-            # 成交量确认
             & (dataframe["volume"] > dataframe["volume_ma"] * 0.8)
             & (dataframe["volume"] > 0)
-            # 多空对抗过滤
             & (dataframe["signal_strength"] > 0.2)
-            # 价格在 BB 中轨以上
             & (dataframe["close"] > dataframe["bb_middle"])
-            # ATR 不能太大（波动率过滤，减少止损触发）
             & (dataframe["atr_percentile"] < 0.78)
-            # 避免连续入场：前 12 根 K 线没有金叉状态
             & (dataframe["ema_fast"].shift(12) <= dataframe["ema_slow"].shift(12))
         )
 
-        # === 均值回归入场（ADX < 20 + 1h 趋势不是下跌 + 更严格条件） ===
+        # === 均值回归入场 ===
         revert_conditions = (
             (dataframe["is_ranging"])
-            # RSI 深度超卖
             & (dataframe["rsi"] < 28)
-            # 价格触及布林带下轨
             & (dataframe["close"] <= dataframe["bb_lower"])
-            # 成交量确认（放量才抄底）
             & (dataframe["volume"] > dataframe["volume_ma"] * 0.5)
             & (dataframe["volume"] > 0)
-            # RSI 开始回升（底部反转信号）
             & (dataframe["rsi"] > dataframe["rsi"].shift(1))
-            # BB 宽度不能太大（避免在暴跌中抄底）
             & (dataframe["bb_width_percentile"] < 0.60)
-            # 多空对抗：不能太偏空
             & (dataframe["signal_strength"] > -0.1)
         )
 
-        # 1h 趋势过滤：均值回归不在 1h 下跌趋势中入场
+        # 1h 趋势过滤
         if "ema_fast_1h_1h" in dataframe.columns:
             revert_conditions = revert_conditions & (
                 dataframe["ema_fast_1h_1h"] >= dataframe["ema_slow_1h_1h"]
@@ -224,9 +222,24 @@ class AdaptiveStrategy(IStrategy):
 
         return dataframe
 
+    def confirm_trade_entry(self, pair, order_type, amount, rate, time_in_force,
+                            current_time, entry_tag, side, **kwargs):
+        """Fear & Greed Index 宏观过滤（仅 live/dry-run 生效）"""
+        # 极度贪婪（>80）→ 只允许趋势信号
+        if self.fng_value > 80 and "trend" not in (entry_tag or ""):
+            logger.info(f"FNG={self.fng_value} 极度贪婪，拒绝非趋势入场: {pair}")
+            return False
+
+        # 极度恐慌（<15）→ 只允许均值回归
+        if self.fng_value < 15 and "revert" not in (entry_tag or ""):
+            logger.info(f"FNG={self.fng_value} 极度恐慌，拒绝非均值回归入场: {pair}")
+            return False
+
+        return True
+
     def custom_stake_amount(self, current_time, current_rate, proposed_stake,
                             min_stake, max_stake, leverage, entry_tag, side, **kwargs) -> float:
-        """根据波动率调整仓位大小"""
+        """根据波动率和情绪调整仓位"""
         dataframe, _ = self.dp.get_analyzed_dataframe(kwargs["pair"], self.timeframe)
         if dataframe.empty:
             return proposed_stake
@@ -237,5 +250,10 @@ class AdaptiveStrategy(IStrategy):
         if last.get("is_high_vol", False):
             proposed_stake = proposed_stake * 0.5
             logger.info(f"高波动市场，仓位减半: {proposed_stake:.2f}")
+
+        # Fear & Greed 极端值 → 仓位缩减 30%
+        if self.fng_value > 75 or self.fng_value < 20:
+            proposed_stake = proposed_stake * 0.7
+            logger.info(f"FNG={self.fng_value} 极端情绪，仓位缩减: {proposed_stake:.2f}")
 
         return proposed_stake

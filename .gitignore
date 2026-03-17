@@ -1,4 +1,25 @@
 __pycache__/
 *.pyc
+*.pyo
 results/
 *.db
+
+# 历史数据（太大）
+freqtrade/user_data/data/
+freqtrade/user_data/backtest_results/
+
+# 敏感信息
+.env
+*.key
+*.pem
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
