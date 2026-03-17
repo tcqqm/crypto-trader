@@ -151,10 +151,11 @@ class AdaptiveStrategy(IStrategy):
         # 多空净得分
         dataframe["signal_strength"] = dataframe["bull_score"] - dataframe["bear_score"]
 
-        # === 趋势跟踪入场（ADX > 25 + 多空净得分 > 0.15） ===
+        # === 趋势跟踪入场（ADX > 25 + 多空净得分 > 0.2） ===
         trend_conditions = (
             (dataframe["is_trending"])
             & ~(dataframe["is_low_vol"])
+            & ~(dataframe["is_high_vol"])  # 高波动不入场（容易触发止损）
             # EMA 金叉状态
             & (dataframe["ema_fast"] > dataframe["ema_slow"])
             # RSI 在合理区间
@@ -167,6 +168,8 @@ class AdaptiveStrategy(IStrategy):
             & (dataframe["signal_strength"] > 0.2)
             # 价格在 BB 中轨以上
             & (dataframe["close"] > dataframe["bb_middle"])
+            # ATR 不能太大（波动率过滤，减少止损触发）
+            & (dataframe["atr_percentile"] < 0.78)
             # 避免连续入场：前 12 根 K 线没有金叉状态
             & (dataframe["ema_fast"].shift(12) <= dataframe["ema_slow"].shift(12))
         )
