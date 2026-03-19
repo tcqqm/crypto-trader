@@ -1,6 +1,6 @@
 {
     "dry_run": true,
-    "dry_run_wallet": 350,
+    "dry_run_wallet": 300,
     "max_open_trades": 2,
     "tradable_balance_ratio": 0.99,
     "stake_amount": "unlimited",
