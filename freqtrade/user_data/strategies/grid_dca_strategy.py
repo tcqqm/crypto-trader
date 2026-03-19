@@ -157,4 +157,8 @@ class GridDCAStrategy(IStrategy):
         if trade_duration > 21600 and current_profit > 0:
             return "mr_timeout"
 
+        # === 6. 均值回归失败（2小时仍亏损超-1%，趋势可能已反转）===
+        if trade_duration > 7200 and current_profit < -0.01:
+            return "mr_revert_fail"
+
         return None
