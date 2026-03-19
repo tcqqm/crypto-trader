@@ -38,8 +38,8 @@ class ScalpingStrategy(IStrategy):
         "0": 0.02,
     }
 
-    # 固定止损 -1.5%
-    stoploss = -0.015
+    # 固定止损 -2%（测试：配合ROI 2%）
+    stoploss = -0.02
     use_custom_stoploss = False
 
     # 关闭trailing stop（v8证明是最大亏损源）
