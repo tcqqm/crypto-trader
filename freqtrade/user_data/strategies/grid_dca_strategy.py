@@ -25,8 +25,8 @@ class GridDCAStrategy(IStrategy):
     startup_candle_count = 200
     can_short = False
 
-    # ROI 1.5% 兜底
-    minimal_roi = {"0": 0.015}
+    # ROI 2% 兜底（测试：让快速冲高的交易赚更多）
+    minimal_roi = {"0": 0.02}
 
     # 固定止损 -2%（v6: 从-1.5%回退，-1.5%导致胜率下降太多）
     stoploss = -0.02

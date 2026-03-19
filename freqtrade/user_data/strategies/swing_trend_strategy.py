@@ -2,6 +2,7 @@
 趋势跟踪策略 SwingTrendStrategy v5
 - v5: 回退到v3入场严格度，止损-1.5%（ScalpingStrategy验证的最优值）
 - 去掉亏损出场，让止损处理亏损（教训6：提前止损反而更差）
+- 6币对优化后：16笔,75%,+5.79%,2.02%回撤
 - 固定止损 -1.5%，禁用trailing和custom_stoploss
 """
 import logging
