@@ -17,5 +17,15 @@
     },
     "bot_name": "grid-dca",
     "timeframe": "5m",
-    "startup_candle_count": 200
+    "startup_candle_count": 200,
+    "exchange": {
+        "pair_whitelist": [
+            "BTC/USDT",
+            "SOL/USDT",
+            "BNB/USDT",
+            "ADA/USDT",
+            "AVAX/USDT",
+            "LINK/USDT"
+        ]
+    }
 }

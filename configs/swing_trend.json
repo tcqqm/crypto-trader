@@ -17,5 +17,15 @@
     },
     "bot_name": "swing-trend",
     "timeframe": "5m",
-    "startup_candle_count": 200
+    "startup_candle_count": 200,
+    "exchange": {
+        "pair_whitelist": [
+            "BTC/USDT",
+            "SOL/USDT",
+            "DOGE/USDT",
+            "BNB/USDT",
+            "AVAX/USDT",
+            "LINK/USDT"
+        ]
+    }
 }
