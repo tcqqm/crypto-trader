@@ -33,9 +33,9 @@ class ScalpingStrategy(IStrategy):
     startup_candle_count = 200
     can_short = False
 
-    # roi 1.5% 兜底
+    # roi 2% 兜底（测试：让快速冲高的交易赚更多）
     minimal_roi = {
-        "0": 0.015,
+        "0": 0.02,
     }
 
     # 固定止损 -1.5%
