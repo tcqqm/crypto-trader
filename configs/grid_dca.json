@@ -1,0 +1,21 @@
+{
+    "dry_run": true,
+    "dry_run_wallet": 350,
+    "max_open_trades": 2,
+    "tradable_balance_ratio": 0.99,
+    "stake_amount": "unlimited",
+    "api_server": {
+        "enabled": true,
+        "listen_ip_address": "0.0.0.0",
+        "listen_port": 8080,
+        "verbosity": "error",
+        "enable_openapi": false,
+        "jwt_secret_key": "",
+        "CORS_origins": [],
+        "username": "freqtrader",
+        "password": "freqtrader"
+    },
+    "bot_name": "grid-dca",
+    "timeframe": "5m",
+    "startup_candle_count": 200
+}

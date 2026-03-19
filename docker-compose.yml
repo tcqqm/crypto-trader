@@ -1,14 +1,51 @@
 services:
-  freqtrade:
+  scalping:
     image: freqtradeorg/freqtrade:stable
-    container_name: crypto-trader
+    container_name: crypto-scalping
     restart: unless-stopped
     volumes:
       - ./freqtrade/user_data:/freqtrade/user_data
-      - ./freqtrade/config.json:/freqtrade/config.json
+      - ./configs/base.json:/freqtrade/base.json
+      - ./configs/scalping.json:/freqtrade/config.json
     ports:
       - "8080:8080"
     command: >
       trade
+      --config /freqtrade/base.json
       --config /freqtrade/config.json
       --strategy ScalpingStrategy
+      --db-url sqlite:////freqtrade/user_data/scalping.sqlite
+
+  grid_dca:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto-grid-dca
+    restart: unless-stopped
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./configs/base.json:/freqtrade/base.json
+      - ./configs/grid_dca.json:/freqtrade/config.json
+    ports:
+      - "8081:8080"
+    command: >
+      trade
+      --config /freqtrade/base.json
+      --config /freqtrade/config.json
+      --strategy GridDCAStrategy
+      --db-url sqlite:////freqtrade/user_data/grid_dca.sqlite
+
+  swing_trend:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto-swing-trend
+    restart: unless-stopped
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./configs/base.json:/freqtrade/base.json
+      - ./configs/swing_trend.json:/freqtrade/config.json
+    ports:
+      - "8082:8080"
+    command: >
+      trade
+      --config /freqtrade/base.json
+      --config /freqtrade/config.json
+      --strategy SwingTrendStrategy
+      --db-url sqlite:////freqtrade/user_data/swing_trend.sqlite
