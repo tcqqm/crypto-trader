@@ -11,4 +11,4 @@ services:
     command: >
       trade
       --config /freqtrade/config.json
-      --strategy AdaptiveStrategy
+      --strategy AdaptiveStrategyV2
