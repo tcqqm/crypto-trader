@@ -77,7 +77,7 @@ class SwingTrendStrategy(IStrategy):
     # ROI 2% 兜底（测试：让快速冲高的交易赚更多）
     minimal_roi = {"0": 0.02}
 
-    # 固定止损 -1.5%（v5: ScalpingStrategy验证的最优值）
+    # 固定止损 -1.5%（v5: ScalpingStrategy验证的最优值，-2%更差）
     stoploss = -0.015
     use_custom_stoploss = False  # 不用custom_stoploss（教训2）
 
