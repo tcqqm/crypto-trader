@@ -12,6 +12,7 @@ freqtrade/user_data/backtest_results/
 .env
 *.key
 *.pem
+freqtrade/config.json
 
 # Docker
 *.log
