@@ -286,9 +286,9 @@ class UnifiedStrategy(IStrategy):
                 return "swing_supertrend_exit"
         if (last.get("ema9", 0) < last.get("ema21", 0)) and current_profit > 0.003:
             return "swing_ema_cross"
-        if current_profit > 0.01:
+        if current_profit > 0.012:
             return "swing_profit_lock"
-        if current_profit > 0.007 and last.get("rsi14", 50) > 55:
+        if current_profit > 0.01 and last.get("rsi14", 50) > 55:
             return "swing_profit_rsi"
         if "rsi14_1h_1h" in last and last["rsi14_1h_1h"] > 70 and current_profit > 0.005:
             return "swing_rsi_exit"
