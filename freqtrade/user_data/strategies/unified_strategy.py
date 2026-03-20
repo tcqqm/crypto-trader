@@ -175,7 +175,6 @@ class UnifiedStrategy(IStrategy):
             & (dataframe["rsi14_1h_1h"] > 38)
             & not_overbought_1h
             & (dataframe["low"] <= dataframe["bb_lower"])
-            & (dataframe["close"] > dataframe["bb_lower"])
             & (dataframe["close"] > dataframe["bb_lower"] * 1.003)
             & (dataframe["lower_shadow"] > 0.003)
             & (dataframe["rsi7"] < 28)
@@ -184,7 +183,6 @@ class UnifiedStrategy(IStrategy):
             & (dataframe["rsi7"].shift(1) < 30)
             & (dataframe["dist_to_mid"] < -0.012)
             & (dataframe["volume"] > dataframe["volume_ma"] * 1.1)
-            & (dataframe["volume"] > 0)
             & (dataframe["bb_width"] > 0.025)
         )
 
