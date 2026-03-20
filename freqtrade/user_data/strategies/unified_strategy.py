@@ -246,7 +246,7 @@ class UnifiedStrategy(IStrategy):
         """Scalping出场逻辑"""
         if current_rate >= last["bb_middle"] and current_profit > 0.003:
             return "bb_middle_target"
-        if current_profit > 0.01:
+        if current_profit > 0.012:
             return "profit_lock"
         if current_profit > 0.007 and last.get("rsi7", 50) > 50:
             return "profit_rsi_exit"
