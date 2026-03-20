@@ -192,7 +192,7 @@ class UnifiedStrategy(IStrategy):
             (dataframe["supertrend_dir_1h_1h"] == 1)
             & (dataframe["ema9_1h_1h"] > dataframe["ema21_1h_1h"])
             & (dataframe["ema21_1h_1h"] > dataframe["ema50_1h_1h"])
-            & (dataframe["adx14_1h_1h"] > 25)
+            & (dataframe["adx14_1h_1h"] > 20)
             & (dataframe["rsi14_1h_1h"] > 45)
             & (dataframe["rsi14_1h_1h"] < 65)
             & (dataframe["ema_cross_up"])
