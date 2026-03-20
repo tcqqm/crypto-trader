@@ -151,10 +151,12 @@ class UnifiedStrategy(IStrategy):
         # === 1. Scalping: BB下轨深度反弹（原版14条件）===
         uptrend_1h = dataframe["ema9_1h_1h"] > dataframe["ema21_1h_1h"]
         not_crashing = dataframe["rsi14_1h_1h"] > 35
+        not_overbought_1h = dataframe["rsi14_1h_1h"] < 75
 
         scalping_entry = (
             uptrend_1h
             & not_crashing
+            & not_overbought_1h
             & (dataframe["low"] <= dataframe["bb_lower"])
             & (dataframe["close"] > dataframe["bb_lower"])
             & (dataframe["close"] > dataframe["open"])
@@ -174,6 +176,7 @@ class UnifiedStrategy(IStrategy):
         grid_entry = (
             uptrend_1h
             & (dataframe["rsi14_1h_1h"] > 38)
+            & not_overbought_1h
             & (dataframe["low"] <= dataframe["bb_lower"])
             & (dataframe["close"] > dataframe["bb_lower"])
             & (dataframe["close"] > dataframe["bb_lower"] * 1.003)
