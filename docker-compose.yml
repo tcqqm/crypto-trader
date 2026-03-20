@@ -49,3 +49,20 @@ services:
       --config /freqtrade/config.json
       --strategy SwingTrendStrategy
       --db-url sqlite:////freqtrade/user_data/swing_trend.sqlite
+
+  unified:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto-unified
+    restart: unless-stopped
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./configs/base.json:/freqtrade/base.json
+      - ./configs/unified.json:/freqtrade/config.json
+    ports:
+      - "8083:8080"
+    command: >
+      trade
+      --config /freqtrade/base.json
+      --config /freqtrade/config.json
+      --strategy UnifiedStrategy
+      --db-url sqlite:////freqtrade/user_data/unified.sqlite
