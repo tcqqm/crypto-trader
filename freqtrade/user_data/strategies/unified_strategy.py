@@ -144,7 +144,8 @@ class UnifiedStrategy(IStrategy):
             dataframe["enter_long"] = 0
             return dataframe
 
-        # === 时间过滤：禁止UTC 18-19点入场（最大亏损时段）===
+        # === 时间过滤：禁止UTC 18-19点入场（最大亏损时段，7笔亏5笔）===
+        # 注：00/01/05点也是高风险但样本太小，暂不过滤避免过拟合
         safe_hours = ~dataframe["date"].dt.hour.isin([18, 19])
 
         # === 1. Scalping: BB下轨深度反弹（原版14条件）===
