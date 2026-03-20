@@ -262,9 +262,9 @@ class UnifiedStrategy(IStrategy):
         """GridDCA出场逻辑"""
         if current_rate >= last["bb_middle"] and current_profit > 0.003:
             return "mr_target"
-        if current_profit > 0.01:
+        if current_profit > 0.012:
             return "mr_profit_lock"
-        if current_profit > 0.007 and last.get("rsi7", 50) > 50:
+        if current_profit > 0.01 and last.get("rsi7", 50) > 50:
             return "mr_profit_rsi"
         if last.get("rsi7", 50) > 60 and current_profit > 0.003:
             return "mr_rsi_exit"
