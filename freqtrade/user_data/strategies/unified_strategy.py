@@ -144,6 +144,9 @@ class UnifiedStrategy(IStrategy):
             dataframe["enter_long"] = 0
             return dataframe
 
+        # === 时间过滤：禁止UTC 18-19点入场（最大亏损时段）===
+        safe_hours = ~dataframe["date"].dt.hour.isin([18, 19])
+
         # === 1. Scalping: BB下轨深度反弹（原版14条件）===
         uptrend_1h = dataframe["ema9_1h_1h"] > dataframe["ema21_1h_1h"]
         not_crashing = dataframe["rsi14_1h_1h"] > 35
@@ -206,9 +209,9 @@ class UnifiedStrategy(IStrategy):
 
         # 按优先级标记（避免同一根K线多个信号）
         # Scalping优先（最高胜率），然后GridDCA，最后SwingTrend
-        dataframe.loc[swing_entry, ["enter_long", "enter_tag"]] = (1, "swing_trend")
-        dataframe.loc[grid_entry, ["enter_long", "enter_tag"]] = (1, "mean_revert")
-        dataframe.loc[scalping_entry, ["enter_long", "enter_tag"]] = (1, "bb_deep_bounce")
+        dataframe.loc[swing_entry & safe_hours, ["enter_long", "enter_tag"]] = (1, "swing_trend")
+        dataframe.loc[grid_entry & safe_hours, ["enter_long", "enter_tag"]] = (1, "mean_revert")
+        dataframe.loc[scalping_entry & safe_hours, ["enter_long", "enter_tag"]] = (1, "bb_deep_bounce")
 
         return dataframe
 
