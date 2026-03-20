@@ -248,7 +248,7 @@ class UnifiedStrategy(IStrategy):
             return "bb_middle_target"
         if current_profit > 0.012:
             return "profit_lock"
-        if current_profit > 0.009 and last.get("rsi7", 50) > 50:
+        if current_profit > 0.01 and last.get("rsi7", 50) > 50:
             return "profit_rsi_exit"
         if last.get("rsi7", 50) > 65 and current_profit > 0.004:
             return "rsi_neutral"
