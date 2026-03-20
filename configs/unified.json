@@ -21,7 +21,6 @@
     "exchange": {
         "pair_whitelist": [
             "BTC/USDT",
-            "SOL/USDT",
             "DOGE/USDT",
             "BNB/USDT",
             "AVAX/USDT",
