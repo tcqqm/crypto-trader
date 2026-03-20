@@ -165,7 +165,6 @@ class UnifiedStrategy(IStrategy):
             & (dataframe["rsi14"] < 40)
             & (dataframe["dist_to_mid"] < -0.01)
             & (dataframe["volume"] > dataframe["volume_ma"] * 1.2)
-            & (dataframe["volume"] > 0)
             & (dataframe["bb_width"] > 0.02)
         )
 
