@@ -252,7 +252,7 @@ class UnifiedStrategy(IStrategy):
             return "profit_rsi_exit"
         if last.get("rsi7", 50) > 65 and current_profit > 0.004:
             return "rsi_neutral"
-        if trade_duration > 10800 and current_profit > 0.002:
+        if trade_duration > 10800 and current_profit > 0.003:
             return "time_profit"
         if trade_duration > 21600 and current_profit > -0.005:
             return "timeout_cut"
