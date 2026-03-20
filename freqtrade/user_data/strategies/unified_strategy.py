@@ -159,7 +159,6 @@ class UnifiedStrategy(IStrategy):
             & not_crashing
             & not_overbought_1h
             & (dataframe["low"] <= dataframe["bb_lower"])
-            & (dataframe["close"] > dataframe["bb_lower"])
             & (dataframe["close"] > dataframe["bb_lower"] * 1.003)
             & (dataframe["rsi7"] < 30)
             & (dataframe["rsi7"] > dataframe["rsi7"].shift(1))
