@@ -284,7 +284,7 @@ class UnifiedStrategy(IStrategy):
         if "supertrend_dir_1h_1h" in last and last["supertrend_dir_1h_1h"] == -1:
             if current_profit > 0:
                 return "swing_supertrend_exit"
-        if (last.get("ema9", 0) < last.get("ema21", 0)) and current_profit > 0.003:
+        if (last.get("ema9", 0) < last.get("ema21", 0)) and current_profit > 0.005:
             return "swing_ema_cross"
         if current_profit > 0.012:
             return "swing_profit_lock"
