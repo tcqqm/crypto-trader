@@ -275,7 +275,10 @@ class UnifiedStrategy(IStrategy):
         return None
 
     def _exit_swing(self, last, trade_duration, current_rate, current_profit):
-        """SwingTrend出场逻辑"""
+        """SwingTrend出场逻辑（原止损-1.5%，通过custom_exit实现）"""
+        # SwingTrend专用提前止损（-1.5%，比全局-2%更紧）
+        if current_profit < -0.015:
+            return "swing_early_stop"
         if "supertrend_dir_1h_1h" in last and last["supertrend_dir_1h_1h"] == -1:
             if current_profit > 0:
                 return "swing_supertrend_exit"
