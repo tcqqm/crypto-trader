@@ -166,7 +166,6 @@ class UnifiedStrategy(IStrategy):
             & (dataframe["rsi7"] > dataframe["rsi7"].shift(1))
             & (dataframe["rsi14"] < 40)
             & (dataframe["rsi7"].shift(1) < 30)
-            & (dataframe["low"].shift(1) <= dataframe["bb_lower"].shift(1) * 1.005)
             & (dataframe["dist_to_mid"] < -0.01)
             & (dataframe["volume"] > dataframe["volume_ma"] * 1.2)
             & (dataframe["volume"] > 0)
