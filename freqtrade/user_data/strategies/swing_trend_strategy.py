@@ -1,7 +1,7 @@
 """
 趋势跟踪策略 SwingTrendStrategy v6
-- v6: 加市场状态过滤（熊市禁入场，矩阵验证熊市亏-3.4U）
-- v5: 回退到v3入场严格度，止损-1.5%
+- v6: 1h EMA50熊市过滤（+6.75% -> +9.50%，84.6%胜率）
+- v7 regime检测器测试：回退到v5水平（+6.75%），不如EMA50
 - 固定止损 -1.5%，禁用trailing和custom_stoploss
 """
 import logging
