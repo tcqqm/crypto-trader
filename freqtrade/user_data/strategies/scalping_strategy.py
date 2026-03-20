@@ -103,19 +103,19 @@ class ScalpingStrategy(IStrategy):
         bb_bounce = (
             uptrend_1h
             & not_crashing
-            & (dataframe["low"] <= dataframe["bb_lower"])              # 触及BB下轨
-            & (dataframe["close"] > dataframe["bb_lower"])             # 收盘在下轨上方
-            & (dataframe["close"] > dataframe["open"])                 # 阳线
-            & (dataframe["close"] > dataframe["bb_lower"] * 1.003)     # 反弹力度确认
-            & (dataframe["rsi7"] < 30)                                 # RSI7深度超卖
-            & (dataframe["rsi7"] > dataframe["rsi7"].shift(1))         # RSI7回升
-            & (dataframe["rsi14"] < 40)                                # RSI14也偏低
-            & (dataframe["rsi7"].shift(1) < 30)                        # 前一根也超卖
-            & (dataframe["low"].shift(1) <= dataframe["bb_lower"].shift(1) * 1.005)  # 连续超卖
-            & (dataframe["dist_to_mid"] < -0.01)                       # 离BB中轨至少1%
-            & (dataframe["volume"] > dataframe["volume_ma"] * 1.2)     # 放量
+            & (dataframe["low"] <= dataframe["bb_lower"])
+            & (dataframe["close"] > dataframe["bb_lower"])
+            & (dataframe["close"] > dataframe["open"])
+            & (dataframe["close"] > dataframe["bb_lower"] * 1.003)
+            & (dataframe["rsi7"] < 30)
+            & (dataframe["rsi7"] > dataframe["rsi7"].shift(1))
+            & (dataframe["rsi14"] < 40)
+            & (dataframe["rsi7"].shift(1) < 30)
+            & (dataframe["low"].shift(1) <= dataframe["bb_lower"].shift(1) * 1.005)
+            & (dataframe["dist_to_mid"] < -0.01)
+            & (dataframe["volume"] > dataframe["volume_ma"] * 1.2)
             & (dataframe["volume"] > 0)
-            & (dataframe["bb_width"] > 0.02)                           # BB不能太窄
+            & (dataframe["bb_width"] > 0.02)
         )
 
         dataframe.loc[bb_bounce, ["enter_long", "enter_tag"]] = (1, "bb_deep_bounce")

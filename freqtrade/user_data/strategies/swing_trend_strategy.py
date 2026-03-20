@@ -1,8 +1,7 @@
 """
-趋势跟踪策略 SwingTrendStrategy v5
-- v5: 回退到v3入场严格度，止损-1.5%（ScalpingStrategy验证的最优值）
-- 去掉亏损出场，让止损处理亏损（教训6：提前止损反而更差）
-- 6币对优化后：16笔,75%,+5.79%,2.02%回撤
+趋势跟踪策略 SwingTrendStrategy v6
+- v6: 加市场状态过滤（熊市禁入场，矩阵验证熊市亏-3.4U）
+- v5: 回退到v3入场严格度，止损-1.5%
 - 固定止损 -1.5%，禁用trailing和custom_stoploss
 """
 import logging
@@ -131,6 +130,8 @@ class SwingTrendStrategy(IStrategy):
                 # 1h EMA
                 informative["ema9_1h"] = ta.EMA(informative, timeperiod=9)
                 informative["ema21_1h"] = ta.EMA(informative, timeperiod=21)
+                # v6: 1h EMA50（长周期趋势，熊市过滤）
+                informative["ema50_1h"] = ta.EMA(informative, timeperiod=50)
 
                 # 1h RSI & ADX
                 informative["rsi14_1h"] = ta.RSI(informative, timeperiod=14)
@@ -154,6 +155,8 @@ class SwingTrendStrategy(IStrategy):
             (dataframe["supertrend_dir_1h_1h"] == 1)
             # 1h EMA趋势确认
             & (dataframe["ema9_1h_1h"] > dataframe["ema21_1h_1h"])
+            # v6: 1h EMA50长周期趋势确认（熊市过滤）
+            & (dataframe["ema21_1h_1h"] > dataframe["ema50_1h_1h"])
             # 1h ADX趋势强度（v5: 回退到25）
             & (dataframe["adx14_1h_1h"] > 25)
             # 1h RSI（v5: 回退到45-65）

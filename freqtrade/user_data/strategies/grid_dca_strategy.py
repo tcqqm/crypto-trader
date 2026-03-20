@@ -1,7 +1,7 @@
 """
 均值回归策略 GridDCAStrategy v8
 - v8: 回退到v6出场，加反弹力度确认（close > bb_lower * 1.003）
-- 6币对优化后：63笔,76.2%,+4.66%,5.34%回撤
+- v9牛市过滤测试失败（+5.48% vs v8 +6.69%），回退
 - 固定止损 -2%，禁用trailing和custom_stoploss
 """
 import logging
