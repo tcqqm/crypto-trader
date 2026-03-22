@@ -1,12 +1,14 @@
 """
-统一策略 UnifiedStrategy — 合并3个策略的入场信号到一个策略
+统一策略 UnifiedStrategy V3 — 合并多策略信号 + 市场状态自适应
 目的：共享1000U资金池，提高资金利用率
 - bb_deep_bounce: 来自ScalpingStrategy（BB下轨深度反弹）
 - mean_revert: 来自GridDCAStrategy（BB下轨+下影线+连续超卖）
 - swing_trend: 来自SwingTrendStrategy（1h Supertrend+5m EMA金叉）
 
-每个信号保持原策略的严格条件，不做任何放宽
-出场也按原策略逻辑，根据enter_tag区分
+V3变更记录：
+- breakout_n20: 已禁用（47%胜率，-390U）
+- rsi_divergence: 已禁用（条件难以平衡）
+- 市场状态过滤: 已集成但对当前信号无额外收益
 """
 import logging
 
@@ -14,6 +16,8 @@ import numpy as np
 import talib.abstract as ta
 from freqtrade.strategy import IStrategy, merge_informative_pair
 from pandas import DataFrame
+
+from market_regime import detect_regime_series
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +135,9 @@ class UnifiedStrategy(IStrategy):
                 informative["supertrend_1h"] = st_values
                 informative["supertrend_dir_1h"] = st_direction
 
+                # === 市场状态检测（实验3）===
+                informative["regime"] = detect_regime_series(informative)
+
                 dataframe = merge_informative_pair(
                     dataframe, informative, self.timeframe, self.informative_timeframe, ffill=True
                 )
@@ -138,23 +145,24 @@ class UnifiedStrategy(IStrategy):
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        """三策略入场信号合并"""
+        """多策略入场信号 + 市场状态自适应过滤"""
 
         if "ema9_1h_1h" not in dataframe.columns:
             dataframe["enter_long"] = 0
             return dataframe
 
+        # === 市场状态（实验3）===
+        regime = dataframe.get("regime_1h", "RANGE")
+
         # === 时间过滤：禁止高风险时段入场 ===
-        # UTC 18-19: 最大亏损时段（7笔亏5笔）
-        # UTC 0: 凌晨流动性差，假信号多
-        # UTC 1,3: 亚洲凌晨，50%胜率，净亏损
         safe_hours = ~dataframe["date"].dt.hour.isin([0, 1, 3, 5, 18, 19])
 
-        # === 1. Scalping: BB下轨深度反弹（原版14条件）===
+        # === 公共条件 ===
         uptrend_1h = dataframe["ema9_1h_1h"] > dataframe["ema21_1h_1h"]
         not_crashing = dataframe["rsi14_1h_1h"] > 35
         not_overbought_1h = dataframe["rsi14_1h_1h"] < 75
 
+        # === 1. Scalping: BB下轨深度反弹 ===
         scalping_entry = (
             uptrend_1h
             & not_crashing
@@ -206,11 +214,30 @@ class UnifiedStrategy(IStrategy):
             & (dataframe["volume"] > 0)
         )
 
+        # === 市场状态自适应过滤（实验3）===
+        # 回测验证：regime过滤对当前3个信号无额外收益，但保留框架供未来使用
+        is_bear = regime == "BEAR"
+
         # 按优先级标记（避免同一根K线多个信号）
         # Scalping优先（最高胜率），然后GridDCA，最后SwingTrend
-        dataframe.loc[swing_entry & safe_hours, ["enter_long", "enter_tag"]] = (1, "swing_trend")
-        dataframe.loc[grid_entry & safe_hours, ["enter_long", "enter_tag"]] = (1, "mean_revert")
-        dataframe.loc[scalping_entry & safe_hours, ["enter_long", "enter_tag"]] = (1, "bb_deep_bounce")
+
+        # SwingTrend: BULL和RANGE时开启（BEAR关闭）
+        dataframe.loc[
+            swing_entry & safe_hours & ~is_bear,
+            ["enter_long", "enter_tag"]
+        ] = (1, "swing_trend")
+
+        # GridDCA: BULL和RANGE时开启（BEAR关闭）
+        dataframe.loc[
+            grid_entry & safe_hours & ~is_bear,
+            ["enter_long", "enter_tag"]
+        ] = (1, "mean_revert")
+
+        # Scalping: 始终开启（所有市场状态下都有效）
+        dataframe.loc[
+            scalping_entry & safe_hours,
+            ["enter_long", "enter_tag"]
+        ] = (1, "bb_deep_bounce")
 
         return dataframe
 
@@ -228,10 +255,14 @@ class UnifiedStrategy(IStrategy):
         trade_duration = (current_time - trade.open_date_utc).total_seconds()
         tag = trade.enter_tag or ""
 
+        # 市场状态：RANGE模式下收紧出场（实验3）
+        regime = last.get("regime_1h", "RANGE")
+        range_mode = regime == "RANGE"
+
         if tag == "bb_deep_bounce":
-            return self._exit_scalping(last, trade_duration, current_rate, current_profit)
+            return self._exit_scalping(last, trade_duration, current_rate, current_profit, range_mode)
         elif tag == "mean_revert":
-            return self._exit_grid(last, trade_duration, current_rate, current_profit)
+            return self._exit_grid(last, trade_duration, current_rate, current_profit, range_mode)
         elif tag == "swing_trend":
             return self._exit_swing(last, trade_duration, current_rate, current_profit)
 
@@ -242,11 +273,13 @@ class UnifiedStrategy(IStrategy):
             return "timeout_cut"
         return None
 
-    def _exit_scalping(self, last, trade_duration, current_rate, current_profit):
-        """Scalping出场逻辑"""
+    def _exit_scalping(self, last, trade_duration, current_rate, current_profit, range_mode=False):
+        """Scalping出场逻辑（RANGE模式下收紧）"""
         if current_rate >= last["bb_middle"] and current_profit > 0.003:
             return "bb_middle_target"
-        if current_profit > 0.012:
+        # RANGE模式：1%就锁利（正常1.2%）
+        profit_lock_threshold = 0.01 if range_mode else 0.012
+        if current_profit > profit_lock_threshold:
             return "profit_lock"
         if current_profit > 0.01 and last.get("rsi7", 50) > 50:
             return "profit_rsi_exit"
@@ -254,15 +287,18 @@ class UnifiedStrategy(IStrategy):
             return "rsi_neutral"
         if trade_duration > 10800 and current_profit > 0.003:
             return "time_profit"
-        if trade_duration > 21600 and current_profit > -0.005:
+        # RANGE模式：超时更快（4h vs 6h）
+        timeout = 14400 if range_mode else 21600
+        if trade_duration > timeout and current_profit > -0.005:
             return "timeout_cut"
         return None
 
-    def _exit_grid(self, last, trade_duration, current_rate, current_profit):
+    def _exit_grid(self, last, trade_duration, current_rate, current_profit, range_mode=False):
         """GridDCA出场逻辑"""
         if current_rate >= last["bb_middle"] and current_profit > 0.003:
             return "mr_target"
-        if current_profit > 0.012:
+        profit_lock_threshold = 0.01 if range_mode else 0.012
+        if current_profit > profit_lock_threshold:
             return "mr_profit_lock"
         if current_profit > 0.01 and last.get("rsi7", 50) > 50:
             return "mr_profit_rsi"
@@ -270,7 +306,8 @@ class UnifiedStrategy(IStrategy):
             return "mr_rsi_exit"
         if trade_duration > 10800 and current_profit > 0.002:
             return "mr_time_profit"
-        if trade_duration > 21600 and current_profit > 0:
+        timeout = 14400 if range_mode else 21600
+        if trade_duration > timeout and current_profit > 0:
             return "mr_timeout"
         if trade_duration > 7200 and current_profit < -0.01:
             return "mr_revert_fail"

@@ -54,6 +54,11 @@ services:
     image: freqtradeorg/freqtrade:stable
     container_name: crypto-unified
     restart: unless-stopped
+    environment:
+      - HTTP_PROXY=http://host.docker.internal:1082
+      - HTTPS_PROXY=http://host.docker.internal:1082
+      - http_proxy=http://host.docker.internal:1082
+      - https_proxy=http://host.docker.internal:1082
     volumes:
       - ./freqtrade/user_data:/freqtrade/user_data
       - ./configs/base.json:/freqtrade/base.json
