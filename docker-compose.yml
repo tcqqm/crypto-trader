@@ -71,3 +71,25 @@ services:
       --config /freqtrade/config.json
       --strategy UnifiedStrategy
       --db-url sqlite:////freqtrade/user_data/unified.sqlite
+
+  yolo:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto-yolo
+    restart: unless-stopped
+    environment:
+      - HTTP_PROXY=http://host.docker.internal:1082
+      - HTTPS_PROXY=http://host.docker.internal:1082
+      - http_proxy=http://host.docker.internal:1082
+      - https_proxy=http://host.docker.internal:1082
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./configs/base.json:/freqtrade/base.json
+      - ./configs/futures_yolo.json:/freqtrade/config.json
+    ports:
+      - "8084:8080"
+    command: >
+      trade
+      --config /freqtrade/base.json
+      --config /freqtrade/config.json
+      --strategy YoloStrategy
+      --db-url sqlite:////freqtrade/user_data/yolo.sqlite
