@@ -12,7 +12,6 @@
         "pair_whitelist": [
             "DOGE/USDT:USDT",
             "AVAX/USDT:USDT",
-            "XRP/USDT:USDT",
             "ATOM/USDT:USDT"
         ]
     },
