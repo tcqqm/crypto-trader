@@ -1,5 +1,6 @@
 #!/bin/bash
 # Crypto Trader 监控脚本 — 检查 unified + yolo bot 状态，异常时 Telegram 告警
+export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 
 BOT_TOKEN="8484351681:AAEHfWrCnylZESB05Tm9O6uX783gSXYedCA"
 CHAT_ID="-5228891470"
